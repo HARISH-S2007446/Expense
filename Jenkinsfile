@@ -1,7 +1,6 @@
 pipeline {
 agent any
 
-```
 stages {
 
     stage('1. Checkout') {
@@ -13,7 +12,6 @@ stages {
 
     stage('2. Check Tools') {
         steps {
-            powershell '''
                 $ErrorActionPreference = "Stop"
 
                 Write-Host "Checking Python..."
@@ -59,13 +57,11 @@ stages {
                 }
 
                 Write-Host "All tools are available."
-            '''
         }
     }
 
     stage('3. Install Dependencies') {
         steps {
-            powershell '''
                 $ErrorActionPreference = "Stop"
 
                 Write-Host "Checking requirements.txt..."
@@ -109,13 +105,11 @@ stages {
                 }
 
                 Write-Host "Dependencies installed successfully."
-            '''
         }
     }
 
     stage('4. Test Application') {
         steps {
-            powershell '''
                 $ErrorActionPreference = "Stop"
 
                 $PYTHON = Join-Path $env:WORKSPACE ".venv\\Scripts\\python.exe"
@@ -137,13 +131,11 @@ stages {
                 }
 
                 Write-Host "Application test passed."
-            '''
         }
     }
 
     stage('5. Build Docker Image') {
         steps {
-            powershell '''
                 $ErrorActionPreference = "Stop"
 
                 $DOCKER_CMD = Get-Command docker.exe -ErrorAction SilentlyContinue
@@ -183,13 +175,11 @@ stages {
                 }
 
                 Write-Host "Docker image built successfully."
-            '''
         }
     }
 
     stage('6. Deploy to Kubernetes') {
         steps {
-            powershell '''
                 $ErrorActionPreference = "Stop"
 
                 $KUBECTL_CMD = Get-Command kubectl.exe -ErrorAction SilentlyContinue
@@ -249,13 +239,11 @@ stages {
                 }
 
                 Write-Host "Kubernetes deployment completed successfully."
-            '''
         }
     }
 
     stage('7. Verify Deployment') {
         steps {
-            powershell '''
                 $ErrorActionPreference = "Stop"
 
                 $KUBECTL_CMD = Get-Command kubectl.exe -ErrorAction SilentlyContinue
@@ -300,7 +288,6 @@ stages {
                 }
 
                 Write-Host "Deployment verification completed successfully."
-            '''
         }
     }
 }
@@ -314,6 +301,5 @@ post {
         echo 'FAILURE: Check Console Output for the failed stage.'
     }
 }
-```
 
 }
