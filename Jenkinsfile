@@ -1,3 +1,4 @@
+```groovy
 pipeline {
     agent any
 
@@ -15,30 +16,47 @@ pipeline {
                 powershell '''
                     $ErrorActionPreference = "Stop"
 
-                    $PYTHON = "C:\\Users\\hp\\expense_tracker\\.venv\\Scripts\\python.exe"
-                    $DOCKER = "C:\\Users\\hp\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe"
-                    $KUBECTL = "C:\\Users\\hp\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe"
-
                     Write-Host "Checking Python..."
-                    if (-not (Test-Path $PYTHON)) {
-                        throw "Python not found: $PYTHON"
+                    $PYTHON_CMD = Get-Command python.exe -ErrorAction SilentlyContinue
+
+                    if (-not $PYTHON_CMD) {
+                        throw "Python is not installed or not available in the Jenkins PATH."
                     }
-                    & $PYTHON --version
-                    if ($LASTEXITCODE -ne 0) { throw "Python check failed" }
+
+                    $PYTHON_BASE = $PYTHON_CMD.Source
+                    & $PYTHON_BASE --version
+
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Python check failed"
+                    }
 
                     Write-Host "Checking Docker..."
-                    if (-not (Test-Path $DOCKER)) {
-                        throw "Docker not found: $DOCKER"
+                    $DOCKER_CMD = Get-Command docker.exe -ErrorAction SilentlyContinue
+
+                    if (-not $DOCKER_CMD) {
+                        throw "Docker CLI is not available in the Jenkins PATH."
                     }
+
+                    $DOCKER = $DOCKER_CMD.Source
                     & $DOCKER --version
-                    if ($LASTEXITCODE -ne 0) { throw "Docker check failed" }
+
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Docker check failed"
+                    }
 
                     Write-Host "Checking kubectl..."
-                    if (-not (Test-Path $KUBECTL)) {
-                        throw "kubectl not found: $KUBECTL"
+                    $KUBECTL_CMD = Get-Command kubectl.exe -ErrorAction SilentlyContinue
+
+                    if (-not $KUBECTL_CMD) {
+                        throw "kubectl is not available in the Jenkins PATH."
                     }
+
+                    $KUBECTL = $KUBECTL_CMD.Source
                     & $KUBECTL version --client
-                    if ($LASTEXITCODE -ne 0) { throw "kubectl check failed" }
+
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "kubectl check failed"
+                    }
 
                     Write-Host "All tools are available."
                 '''
@@ -49,18 +67,42 @@ pipeline {
             steps {
                 powershell '''
                     $ErrorActionPreference = "Stop"
-                    $PYTHON = "C:\\Users\\hp\\expense_tracker\\.venv\\Scripts\\python.exe"
 
-                    Write-Host "Installing Python dependencies..."
+                    Write-Host "Creating Python virtual environment..."
+
+                    $PYTHON_CMD = Get-Command python.exe -ErrorAction SilentlyContinue
+
+                    if (-not $PYTHON_CMD) {
+                        throw "Python is not available in the Jenkins PATH."
+                    }
+
+                    $PYTHON_BASE = $PYTHON_CMD.Source
+                    $VENV = Join-Path $env:WORKSPACE ".venv"
+                    $PYTHON = Join-Path $VENV "Scripts\\python.exe"
+
+                    if (-not (Test-Path $PYTHON)) {
+                        & $PYTHON_BASE -m venv $VENV
+
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "Failed to create Python virtual environment."
+                        }
+                    }
 
                     if (-not (Test-Path "requirements.txt")) {
-                        throw "requirements.txt not found"
+                        throw "requirements.txt not found in the Jenkins workspace."
+                    }
+
+                    Write-Host "Installing Python dependencies..."
+                    & $PYTHON -m pip install --upgrade pip
+
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Failed to upgrade pip."
                     }
 
                     & $PYTHON -m pip install -r requirements.txt
 
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Dependency installation failed"
+                        throw "Dependency installation failed."
                     }
 
                     Write-Host "Dependencies installed successfully."
@@ -72,14 +114,19 @@ pipeline {
             steps {
                 powershell '''
                     $ErrorActionPreference = "Stop"
-                    $PYTHON = "C:\\Users\\hp\\expense_tracker\\.venv\\Scripts\\python.exe"
+
+                    $PYTHON = Join-Path $env:WORKSPACE ".venv\\Scripts\\python.exe"
+
+                    if (-not (Test-Path $PYTHON)) {
+                        throw "Python virtual environment not found: $PYTHON"
+                    }
 
                     Write-Host "Testing Flask application..."
 
                     & $PYTHON -c "from app import app; print('Flask application loaded successfully')"
 
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Flask application test failed"
+                        throw "Application test failed. Check app.py and its dependencies."
                     }
 
                     Write-Host "Application test passed."
@@ -91,25 +138,33 @@ pipeline {
             steps {
                 powershell '''
                     $ErrorActionPreference = "Stop"
-                    $DOCKER = "C:\\Users\\hp\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe"
 
-                    Write-Host "Building Expense Tracker V1 image..."
+                    $DOCKER_CMD = Get-Command docker.exe -ErrorAction SilentlyContinue
+
+                    if (-not $DOCKER_CMD) {
+                        throw "Docker CLI is not available in the Jenkins PATH."
+                    }
+
+                    $DOCKER = $DOCKER_CMD.Source
+
+                    Write-Host "Checking Dockerfile..."
 
                     if (-not (Test-Path "Dockerfile")) {
-                        throw "Dockerfile not found"
+                        throw "Dockerfile not found."
                     }
+
+                    Write-Host "Building Expense Tracker image..."
 
                     & $DOCKER build -t expense-tracker:v1 .
 
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Docker image build failed"
+                        throw "Docker image build failed."
                     }
 
-                    Write-Host "Verifying Docker image..."
                     & $DOCKER image inspect expense-tracker:v1
 
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Docker image verification failed"
+                        throw "Docker image verification failed."
                     }
 
                     Write-Host "Docker image built successfully."
@@ -122,47 +177,66 @@ pipeline {
                 powershell '''
                     $ErrorActionPreference = "Stop"
 
-                    $KUBECTL = "C:\\Users\\hp\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe"
-                    $env:KUBECONFIG = "C:\\Users\\hp\\.kube\\config"
+                    $KUBECTL_CMD = Get-Command kubectl.exe -ErrorAction SilentlyContinue
+
+                    if (-not $KUBECTL_CMD) {
+                        throw "kubectl is not available in the Jenkins PATH."
+                    }
+
+                    $KUBECTL = $KUBECTL_CMD.Source
 
                     Write-Host "Checking Kubernetes configuration..."
 
-                    if (-not (Test-Path $env:KUBECONFIG)) {
-                        throw "Kubernetes config file not found: $env:KUBECONFIG"
+                    if (-not $env:USERPROFILE) {
+                        throw "USERPROFILE is not set for the Jenkins service account."
                     }
+
+                    $KUBECONFIG_PATH = Join-Path $env:USERPROFILE ".kube\\config"
+
+                    if (-not (Test-Path $KUBECONFIG_PATH)) {
+                        throw "Kubernetes config not found at $KUBECONFIG_PATH. Configure Kubernetes access for the Jenkins service account."
+                    }
+
+                    $env:KUBECONFIG = $KUBECONFIG_PATH
 
                     & $KUBECTL config get-contexts
+
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Unable to read Kubernetes contexts"
+                        throw "Unable to read Kubernetes contexts."
                     }
 
-                    Write-Host "Selecting docker-desktop context..."
+                    Write-Host "Checking Docker Desktop Kubernetes context..."
+
                     & $KUBECTL config use-context docker-desktop
+
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Could not select docker-desktop context"
+                        throw "Could not select docker-desktop context."
                     }
 
-                    Write-Host "Checking Kubernetes nodes..."
                     & $KUBECTL get nodes
+
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Cannot connect to Kubernetes cluster"
+                        throw "Cannot connect to Kubernetes cluster."
                     }
 
-                    Write-Host "Checking deployment.yaml..."
                     if (-not (Test-Path "deployment.yaml")) {
-                        throw "deployment.yaml not found in Jenkins workspace"
+                        throw "deployment.yaml not found in Jenkins workspace."
                     }
 
                     Write-Host "Applying Kubernetes configuration..."
+
                     & $KUBECTL apply -f deployment.yaml
+
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Failed to apply deployment.yaml"
+                        throw "Failed to apply deployment.yaml."
                     }
 
                     Write-Host "Waiting for deployment rollout..."
+
                     & $KUBECTL rollout status deployment/expense-tracker --timeout=180s
+
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Deployment rollout failed"
+                        throw "Deployment rollout failed."
                     }
 
                     Write-Host "Kubernetes deployment completed successfully."
@@ -175,25 +249,41 @@ pipeline {
                 powershell '''
                     $ErrorActionPreference = "Stop"
 
-                    $KUBECTL = "C:\\Users\\hp\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\kubectl.exe"
-                    $env:KUBECONFIG = "C:\\Users\\hp\\.kube\\config"
+                    $KUBECTL_CMD = Get-Command kubectl.exe -ErrorAction SilentlyContinue
 
-                    Write-Host "Checking Kubernetes deployment..."
+                    if (-not $KUBECTL_CMD) {
+                        throw "kubectl is not available in the Jenkins PATH."
+                    }
+
+                    $KUBECTL = $KUBECTL_CMD.Source
+
+                    $KUBECONFIG_PATH = Join-Path $env:USERPROFILE ".kube\\config"
+
+                    if (-not (Test-Path $KUBECONFIG_PATH)) {
+                        throw "Kubernetes configuration not found: $KUBECONFIG_PATH"
+                    }
+
+                    $env:KUBECONFIG = $KUBECONFIG_PATH
+
+                    Write-Host "Checking deployments..."
                     & $KUBECTL get deployments
+
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Failed to get deployments"
+                        throw "Failed to get deployments."
                     }
 
                     Write-Host "Checking pods..."
                     & $KUBECTL get pods
+
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Failed to get pods"
+                        throw "Failed to get pods."
                     }
 
                     Write-Host "Checking services..."
                     & $KUBECTL get services
+
                     if ($LASTEXITCODE -ne 0) {
-                        throw "Failed to get services"
+                        throw "Failed to get services."
                     }
 
                     Write-Host "Deployment verification completed."
@@ -212,3 +302,4 @@ pipeline {
         }
     }
 }
+```
