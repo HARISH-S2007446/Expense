@@ -79,7 +79,7 @@ stages {
 
                 $PYTHON_BASE = $PYTHON_CMD.Source
                 $VENV = Join-Path $env:WORKSPACE ".venv"
-                $PYTHON = Join-Path $VENV "Scripts\python.exe"
+                $PYTHON = Join-Path $VENV "Scripts/python.exe"
 
                 if (-not (Test-Path $PYTHON)) {
                     Write-Host "Creating virtual environment..."
@@ -113,7 +113,7 @@ stages {
             powershell '''
                 $ErrorActionPreference = "Stop"
 
-                $PYTHON = Join-Path $env:WORKSPACE ".venv\Scripts\python.exe"
+                $PYTHON = Join-Path $env:WORKSPACE ".venv/Scripts/python.exe"
 
                 if (-not (Test-Path $PYTHON)) {
                     throw "Python virtual environment not found."
@@ -190,7 +190,7 @@ stages {
 
                 $KUBECTL = $KUBECTL_CMD.Source
 
-                $KUBECONFIG_PATH = Join-Path $env:USERPROFILE ".kube\config"
+                $KUBECONFIG_PATH = Join-Path $env:USERPROFILE ".kube/config"
 
                 if (-not (Test-Path $KUBECONFIG_PATH)) {
                     throw "Kubernetes config not found: $KUBECONFIG_PATH"
@@ -247,7 +247,7 @@ stages {
                 }
 
                 $KUBECTL = $KUBECTL_CMD.Source
-                $KUBECONFIG_PATH = Join-Path $env:USERPROFILE ".kube\config"
+                $KUBECONFIG_PATH = Join-Path $env:USERPROFILE ".kube/config"
 
                 if (-not (Test-Path $KUBECONFIG_PATH)) {
                     throw "Kubernetes config not found."
