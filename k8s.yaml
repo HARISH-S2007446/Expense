@@ -1,0 +1,54 @@
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: expense-v1-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: expense-v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: expense-v1
+  template:
+    metadata:
+      labels:
+        app: expense-v1
+    spec:
+      containers:
+        - name: expense-tracker
+          image: expense-tracker:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          env:
+            - name: DATA_DIR
+              value: /app/data
+          volumeMounts:
+            - name: expense-data
+              mountPath: /app/data
+      volumes:
+        - name: expense-data
+          persistentVolumeClaim:
+            claimName: expense-v1-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: expense-v1-service
+spec:
+  type: ClusterIP
+  selector:
+    app: expense-v1
+  ports:
+    - port: 5000
+      targetPort: 5000
